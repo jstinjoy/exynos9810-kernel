@@ -16,7 +16,6 @@ obj-vdso   := $(obj-vdso-c) $(obj-vdso-s)
 
 ccflags-y := -fno-common -fno-builtin -fno-stack-protector
 ccflags-y += -DDISABLE_BRANCH_PROFILING -ffixed-x18
-ldflags-y := -shared -nostdlib -soname=linux-vdso.so.1 --hash-style=sysv --build-id -n -T
 ccflags-y += $(DISABLE_LTO)
 
 CFLAGS_REMOVE_vgettimeofday.o = -pg -Os
@@ -41,9 +40,14 @@ CPPFLAGS_vdso.lds += -P -C -U$(ARCH)
 # Force dependency (incbin is bad)
 $(obj)/vdso.o : $(obj)/vdso.so
 
-# Link rule for the .so file, .lds has to be first
+# Link rule for the .so file, .lds has to be first.
+# vDSO-specific link flags are kept OUT of ldflags-y so they don't leak into
+# the dir's built-in.o (-r) partial link (which would mis-grab -r as a -T script).
+quiet_cmd_vdsold = VDSOL   $@
+      cmd_vdsold = $(LD) $(KBUILD_LDFLAGS) -shared -nostdlib -soname=linux-vdso.so.1 \
+                   --hash-style=sysv --build-id -n -T $(filter %.lds,$^) $(filter %.o,$^) -o $@
 $(obj)/vdso.so.dbg: $(src)/vdso.lds $(obj-vdso)
-	$(call if_changed,ld)
+	$(call if_changed,vdsold)
 
 # Strip rule for the .so file
 $(obj)/%.so: OBJCOPYFLAGS := -S
