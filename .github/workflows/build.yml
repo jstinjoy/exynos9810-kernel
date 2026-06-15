@@ -1,0 +1,85 @@
+name: build-ksu-susfs
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install deps
+        run: |
+          set -eux
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            bc bison flex libssl-dev libncurses-dev build-essential \
+            libelf-dev zip git ca-certificates wget python3 kmod cpio rsync curl file \
+            libc6-i386 lib32stdc++6 lib32z1
+          DEBIAN_FRONTEND=noninteractive apt-get install -y python2
+          ln -sf /usr/bin/python2 /usr/bin/python
+          DEBIAN_FRONTEND=noninteractive apt-get install -y libtinfo5 || true
+
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Fetch GCC 4.9 (LineageOS mirrors)
+        run: |
+          set -euxo pipefail
+          git clone --depth=1 -b lineage-19.1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 gcc64
+          git clone --depth=1 -b lineage-19.1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9 gcc32
+          ./gcc64/bin/aarch64-linux-android-gcc --version
+
+      - name: Integrate SUSFS (kernel-4.9)
+        run: |
+          set -euxo pipefail
+          git clone --depth=1 -b kernel-4.9 https://gitlab.com/simonpunk/susfs4ksu.git susfs
+          cp susfs/kernel_patches/fs/susfs.c fs/
+          cp susfs/kernel_patches/fs/sus_su.c fs/
+          echo "=== applying susfs kernel patch (reject count is the signal) ==="
+          patch -p1 < susfs/kernel_patches/50_add_susfs_in_kernel-4.9.patch
+
+      - name: Build
+        run: |
+          set -euxo pipefail
+          export ARCH=arm64
+          export ANDROID_MAJOR_VERSION=q
+          export CROSS_COMPILE="$GITHUB_WORKSPACE/gcc64/bin/aarch64-linux-android-"
+          export CROSS_COMPILE_ARM32="$GITHUB_WORKSPACE/gcc32/bin/arm-linux-androideabi-"
+          export KBUILD_BUILD_USER=ci KBUILD_BUILD_HOST=duhansusfs
+          make HOSTCFLAGS="-fcommon -w -O2" star2lte_defconfig
+          printf '%s\n' \
+            'CONFIG_KSU=y' \
+            'CONFIG_KSU_SUSFS=y' \
+            'CONFIG_KSU_SUSFS_SUS_PATH=y' \
+            'CONFIG_KSU_SUSFS_SUS_MOUNT=y' \
+            'CONFIG_KSU_SUSFS_SUS_KSTAT=y' \
+            'CONFIG_KSU_SUSFS_SPOOF_UNAME=y' \
+            'CONFIG_KSU_SUSFS_TRY_UMOUNT=y' \
+            'CONFIG_KSU_SUSFS_ENABLE_LOG=y' \
+            'CONFIG_KALLSYMS=y' \
+            'CONFIG_KALLSYMS_ALL=y' \
+            'CONFIG_OVERLAY_FS=y' \
+            >> .config
+          make HOSTCFLAGS="-fcommon -w -O2" olddefconfig
+          echo "=== effective KSU/SUSFS config ==="
+          grep -E "CONFIG_KSU|SUSFS|OVERLAY_FS|KALLSYMS_ALL" .config || true
+          make -j"$(nproc)" HOSTCFLAGS="-fcommon -w -O2" Image 2>&1 | tee build.log
+
+      - name: List output
+        if: always()
+        run: ls -la arch/arm64/boot/ 2>/dev/null || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu-susfs-Image
+          path: |
+            arch/arm64/boot/Image
+            arch/arm64/boot/Image.gz
+            build.log
+          if-no-files-found: warn
