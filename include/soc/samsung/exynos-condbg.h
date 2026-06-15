@@ -60,10 +60,12 @@ static inline int ecd_get_enable(void)
 extern int s3c2410wdt_set_emergency_reset(unsigned int timeout, int index);
 #endif
 #else
+#ifndef s3c2410wdt_set_emergency_reset
 static inline int s3c2410wdt_set_emergency_reset(unsigned int timeout, int index)
 {
 	return -1;
 }
+#endif
 #endif
 enum {
 	MODE_NORMAL = 0,

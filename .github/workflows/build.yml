@@ -63,6 +63,7 @@ jobs:
             CONFIG_KALLSYMS=y \
             CONFIG_KALLSYMS_ALL=y \
             CONFIG_OVERLAY_FS=y \
+            CONFIG_CAL_IF=y \
             >> .config
           make $ARGS olddefconfig
           echo "=== effective KSU/SUSFS config ==="
