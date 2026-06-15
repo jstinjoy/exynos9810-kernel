@@ -69,6 +69,7 @@ jobs:
             '# CONFIG_CFI_CLANG is not set' \
             '# CONFIG_CFI is not set' \
             '# CONFIG_SHADOW_CALL_STACK is not set' \
+            '# CONFIG_COMPAT_VDSO is not set' \
             >> .config
           make $ARGS olddefconfig
           echo "=== effective KSU/SUSFS config ==="
