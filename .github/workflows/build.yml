@@ -17,8 +17,8 @@ jobs:
             bc bison flex libssl-dev libncurses-dev build-essential \
             libelf-dev zip git ca-certificates wget python3 kmod cpio rsync curl file \
             libc6-i386 lib32stdc++6 lib32z1
-          DEBIAN_FRONTEND=noninteractive apt-get install -y python2
-          ln -sf /usr/bin/python2 /usr/bin/python
+          DEBIAN_FRONTEND=noninteractive apt-get install -y python2 || true
+          ln -sf /usr/bin/python2 /usr/bin/python 2>/dev/null || true
           DEBIAN_FRONTEND=noninteractive apt-get install -y libtinfo5 || true
 
       - name: Checkout (with submodules)
@@ -26,22 +26,30 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Fetch GCC 4.9 (LineageOS mirrors)
+      - name: Fetch Clang (clang+lld) + GCC binutils
         run: |
           set -euxo pipefail
+          mkdir -p clang && cd clang
+          wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260510-release/Clang-16.0.6-20260510.tar.gz -O clang.tar.gz
+          tar xzf clang.tar.gz && rm clang.tar.gz
+          cd "$GITHUB_WORKSPACE"
           git clone --depth=1 -b lineage-19.1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 gcc64
           git clone --depth=1 -b lineage-19.1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9 gcc32
-          ./gcc64/bin/aarch64-linux-android-gcc --version
+          ./clang/bin/clang --version
+          ./clang/bin/ld.lld --version
 
-      - name: Build (KSU + SUSFS, source already patched)
+      - name: Build (KSU + SUSFS, clang+lld)
         run: |
           set -euxo pipefail
           export ARCH=arm64
           export ANDROID_MAJOR_VERSION=q
+          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
           export CROSS_COMPILE="$GITHUB_WORKSPACE/gcc64/bin/aarch64-linux-android-"
           export CROSS_COMPILE_ARM32="$GITHUB_WORKSPACE/gcc32/bin/arm-linux-androideabi-"
+          export CLANG_TRIPLE=aarch64-linux-gnu-
           export KBUILD_BUILD_USER=ci KBUILD_BUILD_HOST=ksususfs
-          make HOSTCFLAGS="-fcommon -w -O2" star2lte_defconfig
+          ARGS="CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip READELF=llvm-readelf HOSTCC=clang HOSTCXX=clang++ HOSTCFLAGS=-fcommon HOSTLDFLAGS=-fuse-ld=lld CLANG_TRIPLE=aarch64-linux-gnu-"
+          make $ARGS star2lte_defconfig
           printf '%s\n' \
             CONFIG_KSU=y \
             CONFIG_KSU_SUSFS=y \
@@ -56,10 +64,10 @@ jobs:
             CONFIG_KALLSYMS_ALL=y \
             CONFIG_OVERLAY_FS=y \
             >> .config
-          make HOSTCFLAGS="-fcommon -w -O2" olddefconfig
+          make $ARGS olddefconfig
           echo "=== effective KSU/SUSFS config ==="
           grep -E "CONFIG_KSU" .config || true
-          make -j"$(nproc)" HOSTCFLAGS="-fcommon -w -O2" Image 2>&1 | tee build.log
+          make -j"$(nproc)" $ARGS Image 2>&1 | tee build.log
 
       - name: List output
         if: always()
