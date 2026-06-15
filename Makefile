@@ -546,14 +546,9 @@ ifneq ($(filter install,$(MAKECMDGOALS)),)
         endif
 endif
 
-KBUILD_CFLAGS   += -march=armv8-a+crypto+crc -mcpu=exynos-m3 -mtune=exynos-m3
-KBUILD_AFLAGS   += -march=armv8-a+crypto+crc -mcpu=exynos-m3 -mtune=exynos-m3
-KBUILD_LDFLAGS  += -mllvm -march=armv8-a+crypto+crc\
+KBUILD_CFLAGS   += -march=armv8-a+crypto+crcKBUILD_AFLAGS   += -march=armv8-a+crypto+crcKBUILD_LDFLAGS  += -mllvm -march=armv8-a+crypto+crc\
         -mllvm -mcpu=exynos-m3 \
 
-KBUILD_CFLAGS  += -mfloat-abi=hard
-KBUILD_AFLAGS  += -mfloat-abi=hard
-KBUILD_LDFLAGS  += -mllvm -float-abi=hard
 
 
 ifeq ($(cc-name),clang)
