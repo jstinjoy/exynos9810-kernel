@@ -16,7 +16,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y \
             bc bison flex libssl-dev libncurses-dev build-essential \
             libelf-dev zip git ca-certificates wget python3 kmod cpio rsync curl file \
-            libc6-i386 lib32stdc++6 lib32z1
+            libc6-i386 lib32stdc++6 lib32z1 libxml2
           DEBIAN_FRONTEND=noninteractive apt-get install -y python2 || true
           ln -sf /usr/bin/python2 /usr/bin/python 2>/dev/null || true
           DEBIAN_FRONTEND=noninteractive apt-get install -y libtinfo5 || true
