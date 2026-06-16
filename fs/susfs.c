@@ -556,6 +556,11 @@ int susfs_add_try_umount(struct st_susfs_try_umount* __user user_info) {
 	return 0;
 }
 
+/* Compat shim: the v3.1.0-legacy-susfs KSU driver (setuid_hook.c) calls this
+ * after try_umount. v1.5.5 SUSFS has no per-proc umount-once flag, so no-op. */
+void susfs_set_current_proc_umounted(void) {
+}
+
 void susfs_try_umount(uid_t target_uid) {
 	struct st_susfs_try_umount_list *cursor = NULL;
 
