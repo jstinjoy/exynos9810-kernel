@@ -556,9 +556,45 @@ int susfs_add_try_umount(struct st_susfs_try_umount* __user user_info) {
 	return 0;
 }
 
-/* Compat shim: the v3.1.0-legacy-susfs KSU driver (setuid_hook.c) calls this
- * after try_umount. v1.5.5 SUSFS has no per-proc umount-once flag, so no-op. */
-void susfs_set_current_proc_umounted(void) {
+/*
+ * ---------------------------------------------------------------------------
+ * Compat shims for the v3.1.0-legacy-susfs (susfs v2.0.0 "de-inlined") KSU
+ * driver running against this v1.5.5 kernel-side susfs.
+ *
+ * The driver's setuid_hook.c + supercalls.c call these de-inlined v2.0.0 entry
+ * points. v1.5.5 implements the actual hiding via inode tagging (sus_path /
+ * sus_kstat), mountinfo hooks (sus_mount) and susfs_try_umount(), so the
+ * per-proc-umount flag, the per-uid sus_path loop, the mnt_id reorder, and the
+ * v2.0.0-only sus_maps / avc-log-spoof / external-dir features are safe no-ops
+ * here. show_version / show_variant return real strings so the userspace
+ * ksu_susfs version handshake still succeeds.
+ * ---------------------------------------------------------------------------
+ */
+void susfs_run_sus_path_loop(uid_t uid) { }
+void susfs_reorder_mnt_id(void) { }
+void susfs_set_current_proc_umounted(void) { }
+bool susfs_is_current_proc_umounted(void) { return false; }
+int susfs_add_sus_map(void __user* arg) { return 0; }
+int susfs_add_sus_path_loop(void __user* arg) { return 0; }
+int susfs_enable_log(void __user* arg) { return 0; }
+int susfs_get_enabled_features(void __user* arg) {
+	u64 features = 0;
+	if (arg && copy_to_user(arg, &features, sizeof(features)))
+		return -EFAULT;
+	return 0;
+}
+int susfs_set_avc_log_spoofing(void __user* arg) { return 0; }
+int susfs_set_hide_sus_mnts_for_non_su_procs(void __user* arg) { return 0; }
+int susfs_set_i_state_on_external_dir(void __user* arg) { return 0; }
+int susfs_show_variant(void __user* arg) {
+	if (arg && copy_to_user(arg, SUSFS_VARIANT, strlen(SUSFS_VARIANT) + 1))
+		return -EFAULT;
+	return 0;
+}
+int susfs_show_version(void __user* arg) {
+	if (arg && copy_to_user(arg, SUSFS_VERSION, strlen(SUSFS_VERSION) + 1))
+		return -EFAULT;
+	return 0;
 }
 
 void susfs_try_umount(uid_t target_uid) {

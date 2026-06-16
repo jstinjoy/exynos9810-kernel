@@ -2,6 +2,8 @@
 #define KSU_SUSFS_DEF_H
 
 #include <linux/bits.h>
+#include <linux/types.h>
+#include <linux/compiler.h>
 
 /********/
 /* ENUM */
@@ -25,6 +27,19 @@
 #define CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE 0x555e4
 #define CMD_SUSFS_IS_SUS_SU_READY 0x555f0
 #define CMD_SUSFS_SUS_SU 0x60000
+
+/*
+ * v2.0.0-only command IDs referenced by the v3.1.0-legacy-susfs KSU driver's
+ * supercalls.c. This tree is susfs v1.5.5 kernel-side and never receives these
+ * from the (v1.5.5) userspace ksu_susfs tool, so the values only need to compile
+ * and not collide with the above (0x55600+ is an unused gap below CMD_SUSFS_SUS_SU).
+ */
+#define CMD_SUSFS_ADD_SUS_MAP 0x55600
+#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55610
+#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x55620
+#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS 0x55630
+#define CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH 0x55640
+#define CMD_SUSFS_SET_SDCARD_ROOT_PATH 0x55650
 
 #define SUSFS_MAX_LEN_PATHNAME 256 // 256 should address many paths already unless you are doing some strange experimental stuff, then set your own desired length
 #define SUSFS_FAKE_CMDLINE_OR_BOOTCONFIG_SIZE 4096
@@ -59,5 +74,27 @@
 #define DATA_ADB_NO_AUTO_ADD_SUS_BIND_MOUNT "/data/adb/susfs_no_auto_add_sus_bind_mount"
 #define DATA_ADB_NO_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT "/data/adb/susfs_no_auto_add_sus_ksu_default_mount"
 #define DATA_ADB_NO_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT "/data/adb/susfs_no_auto_add_try_umount_for_bind_mount"
+
+/*
+ * Compat prototypes for the v3.1.0-legacy-susfs (susfs v2.0.0 "de-inlined") KSU
+ * driver. setuid_hook.c includes <linux/susfs_def.h> directly and supercalls.c
+ * gets it via <linux/susfs.h>, so declaring here makes both see these de-inlined
+ * entry points. Definitions live in fs/susfs.c. Features absent from v1.5.5 are
+ * safe no-ops there — the real sus_path/sus_mount/sus_kstat hiding is driven by
+ * inode tagging + the fs/ hooks + susfs_try_umount, independent of these.
+ */
+void susfs_run_sus_path_loop(uid_t uid);
+void susfs_reorder_mnt_id(void);
+void susfs_set_current_proc_umounted(void);
+bool susfs_is_current_proc_umounted(void);
+int susfs_add_sus_map(void __user* arg);
+int susfs_add_sus_path_loop(void __user* arg);
+int susfs_enable_log(void __user* arg);
+int susfs_get_enabled_features(void __user* arg);
+int susfs_set_avc_log_spoofing(void __user* arg);
+int susfs_set_hide_sus_mnts_for_non_su_procs(void __user* arg);
+int susfs_set_i_state_on_external_dir(void __user* arg);
+int susfs_show_variant(void __user* arg);
+int susfs_show_version(void __user* arg);
 
 #endif // #ifndef KSU_SUSFS_DEF_H
