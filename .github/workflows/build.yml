@@ -27,15 +27,22 @@ jobs:
         with:
           submodules: false
 
-      - name: Set up KSU-Next (v3.1.0-legacy-susfs) - has SUSFS v1.5.5 native
+      - name: Set up KSU-Next (legacy-susfs, exact commit pairing with SUSFS v1.5.5)
         run: |
           set -euxo pipefail
-          # Replace duhansysl's pinned KSU-Next (no SUSFS) with the legacy-susfs variant
-          # at the path the committed drivers/kernelsu symlink expects.
+          # Use the EXACT KernelSU-Next commit Redminote11tech pairs with SUSFS v1.5.5.
+          # (the v3.1.0-legacy-susfs tag is newer and calls susfs_set_current_proc_umounted,
+          #  which v1.5.5 SUSFS does not provide.)
           rm -rf KernelSU-Next
-          git clone --depth=1 -b v3.1.0-legacy-susfs https://github.com/KernelSU-Next/KernelSU-Next KernelSU-Next
-          echo "--- KSU_SUSFS present in KSU driver Kconfig? (should be >0) ---"
+          mkdir KernelSU-Next && cd KernelSU-Next
+          git init -q
+          git remote add origin https://github.com/KernelSU-Next/KernelSU-Next
+          git fetch -q --depth=1 origin d6aa260fe0eab8b60e2525b2310782ab33993cda
+          git checkout -q FETCH_HEAD
+          cd "$GITHUB_WORKSPACE"
+          echo "--- KSU_SUSFS present? + no set_current_proc_umounted call (should be 0)? ---"
           grep -c "KSU_SUSFS" KernelSU-Next/kernel/Kconfig || true
+          grep -rc "susfs_set_current_proc_umounted" KernelSU-Next/kernel/ 2>/dev/null || echo "0 (good)"
           ls -la drivers/kernelsu KernelSU-Next/kernel/Kconfig
 
       - name: Fetch Clang (clang+lld)
