@@ -22,31 +22,20 @@ jobs:
           ln -sf /usr/bin/python2 /usr/bin/python 2>/dev/null || true
           DEBIAN_FRONTEND=noninteractive apt-get install -y libtinfo5 || true
 
-      - name: Checkout (no submodules; KSU is swapped below)
+      - name: Checkout (no submodules; KSU swapped below)
         uses: actions/checkout@v4
         with:
           submodules: false
 
-      - name: Swap KSU driver -> vanilla tiann/KernelSU + enable SUSFS (non-GKI recipe)
+      - name: Set up KSU-Next (v3.1.0-legacy-susfs) - has SUSFS v1.5.5 native
         run: |
           set -euxo pipefail
-          git clone --depth=1 -b kernel-4.9 https://gitlab.com/simonpunk/susfs4ksu.git /tmp/susfs
-          # Replace duhansysl's custom KSU-Next (no SUSFS) with vanilla KSU at the path the symlink expects
+          # Replace duhansysl's pinned KSU-Next (no SUSFS) with the legacy-susfs variant
+          # at the path the committed drivers/kernelsu symlink expects.
           rm -rf KernelSU-Next
-          git clone --depth=1 -b v3.2.4 https://github.com/tiann/KernelSU KernelSU-Next
-          pushd KernelSU-Next
-          # Revert the commit SUSFS needs reverted (no-op if already absent)
-          curl -LSs "https://github.com/tiann/KernelSU/commit/898e9d4f8ca9b2f46b0c6b36b80a872b5b88d899.patch" -o /tmp/revert.patch
-          patch -R -p1 --no-backup-if-mismatch < /tmp/revert.patch || echo "revert: hunks absent/already-reverted, continuing"
-          # Apply the SUSFS KSU-side enable patch (adds CONFIG_KSU_SUSFS + driver integration)
-          cp /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch .
-          patch -p1 < 10_enable_susfs_for_ksu.patch
-          # Non-GKI: disable kprobe hooks (we use the manual hooks already committed in the kernel source)
-          grep -rl '#ifdef CONFIG_KPROBES' kernel/ 2>/dev/null | xargs -r sed -i 's/#ifdef CONFIG_KPROBES/#if defined(CONFIG_KPROBES) \&\& 0/g' || true
-          echo "--- KSU_SUSFS now in KSU Kconfig? ---"
-          grep -c "KSU_SUSFS" kernel/Kconfig || true
-          popd
-          echo "--- drivers/kernelsu resolves to vanilla KSU? ---"
+          git clone --depth=1 -b v3.1.0-legacy-susfs https://github.com/KernelSU-Next/KernelSU-Next KernelSU-Next
+          echo "--- KSU_SUSFS present in KSU driver Kconfig? (should be >0) ---"
+          grep -c "KSU_SUSFS" KernelSU-Next/kernel/Kconfig || true
           ls -la drivers/kernelsu KernelSU-Next/kernel/Kconfig
 
       - name: Fetch Clang (clang+lld)
@@ -73,6 +62,7 @@ jobs:
           cat arch/arm64/configs/star2lte_defconfig >> .config
           printf '%s\n' \
             CONFIG_KSU=y \
+            CONFIG_KSU_MANUAL_HOOK=y \
             CONFIG_KSU_SUSFS=y \
             CONFIG_KSU_SUSFS_SUS_PATH=y \
             CONFIG_KSU_SUSFS_SUS_MOUNT=y \
@@ -81,7 +71,6 @@ jobs:
             CONFIG_KSU_SUSFS_SPOOF_UNAME=y \
             CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y \
             CONFIG_KSU_SUSFS_ENABLE_LOG=y \
-            CONFIG_KPROBES=y \
             CONFIG_KALLSYMS=y \
             CONFIG_KALLSYMS_ALL=y \
             CONFIG_OVERLAY_FS=y \
